@@ -6,7 +6,7 @@ import Data.Word
 
 bitSlice :: (Bits a, Num a) => a -> Int -> Int -> a
 bitSlice x start end = (shiftR x start) .&. (complement $ shiftL (-1) (end - start))
-{-# SPECIALIZE bitSlice :: Word32 -> Int -> Int -> Word32 #-}
+-- {-# SPECIALIZE bitSlice :: Word32 -> Int -> Int -> Word32 #-}
 {-# INLINE bitSlice #-}
 setIndex :: Int -> a -> [a] -> [a]
 setIndex i x l = left ++ (x:(drop 1 right))
@@ -43,8 +43,8 @@ lower n x = fromIntegral $ bitSlice x 0 n
 combineBytes :: (Bits a, Integral a) => [Word8] -> a
 combineBytes bytes = foldr (\(x,n) res -> res .|. shiftL (fromIntegral n) (8*x)) 0 $ zip [0..] bytes
 {-# INLINE combineBytes #-}
-{-# SPECIALIZE combineBytes :: [Word8] -> Word32 #-}
-{-# SPECIALIZE combineBytes :: [Word8] -> Word16 #-}
+-- {-# SPECIALIZE combineBytes :: [Word8] -> Word32 #-}
+-- {-# SPECIALIZE combineBytes :: [Word8] -> Word16 #-}
 
 splitHalf :: (Bits a, Integral a) => a -> [Word8]
 splitHalf w = map fromIntegral [bitSlice w 0 8, bitSlice w 8 16]
