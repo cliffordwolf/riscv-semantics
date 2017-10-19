@@ -1,4 +1,5 @@
 Decode.hs
+ParseToJson.hs
 elf2hex/elf2hex
 *.o
 *.hi
