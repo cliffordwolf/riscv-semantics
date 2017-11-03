@@ -1,6 +1,8 @@
 module Execute where
 import Decode
 import Program
+import CSR
+import qualified CSRField as Field
 import ExecuteI as I
 import ExecuteI64 as I64
 import ExecuteM as M
@@ -9,4 +11,11 @@ import ExecuteCSR as CSR
 import Control.Monad
 
 execute :: (RiscvProgram p t u) => Instruction -> p ()
+execute InvalidInstruction = do
+  pc <- getPC
+  addr <- getCSRField Field.MTVecBase
+  setCSRField Field.MEPC pc
+  setCSRField Field.MCauseInterrupt 0 -- Not an interrupt
+  setCSRField Field.MCauseCode 2 -- Illegal instruction
+  setPC (addr * 4)
 execute inst = msum (map (\f -> f inst) [I.execute, I64.execute, M.execute, M64.execute, CSR.execute])

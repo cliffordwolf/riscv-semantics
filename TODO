@@ -61,3 +61,30 @@ Thursday, September 14th
 
 Friday, September 22nd
 * Basic interrupts via polling (interrupt CSRs).
+
+Monday, October 2nd
+* Virtual memory (check spec).
+* Attempt to test it?
+* Spike/Linux-saga continues
+* Haskell FFI / Spike step function
+
+Friday, October 6th
+* Implement CSR that holds virtual memory mode, base address.
+* SATP, MIP
+
+Friday, October 13th
+* 64-bit SATP, implement Sv39
+* Check out riscv-tests
+* loadField/storeField
+* Timer interrupts
+* Initial floating-point support using Haskell semantics?
+* Replace Int/Integer with MachineInt (= Int64 for now). Set Register = Int8.
+
+Friday, October 19th
+* instret, cycle (= instret in this case).
+* ECALL, MRET, EBREAK (approx. = ECALL in this case).
+* Timer interrupts
+* medeleg, mideleg need not exist yet (except for spike compat)
+* MPIE, MIE, most things hardwired to 0
+* Timer and time compare register are memory-mapped
+* Taking an interrupt should disable interrupts (trap handler is responsible for re-enabling)

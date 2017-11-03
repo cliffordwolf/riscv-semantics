@@ -4,7 +4,8 @@ import Memory as M
 import MapMemory
 import Program
 import Utility
-import CSR
+import CSRFile
+import qualified CSRField as Field
 import Data.Int
 import Data.Word
 import Data.Bits
@@ -17,7 +18,6 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import System.IO.Error
 import qualified Data.Map as S
-import Debug.Trace
 
 newtype MState s a = MState { runState :: s -> (MaybeT IO) (a, s) }
 
@@ -40,7 +40,9 @@ instance Alternative (MState s) where
 
 instance MonadPlus (MState s)
 
-data MMIO64 = MMIO64 { registers :: [Int64], csrs :: [(Int, CSR)], pc :: Int64, nextPC :: Int64, mem :: S.Map Int Word8, mmio :: [(LoadFunc, StoreFunc)] }
+data MMIO64 = MMIO64 { registers :: [Int64], csrs :: CSRFile, pc :: Int64,
+                       nextPC :: Int64, mem :: S.Map Int Word8,
+                       mmio :: [(LoadFunc, StoreFunc)] }
               deriving (Show)
 
 -- open, close, read, write
@@ -76,11 +78,27 @@ wrapLoad loadFunc addr = MState $ \comp -> return (fromIntegral $ loadFunc (mem 
 wrapStore storeFunc addr val = MState $ \comp -> return ((), comp { mem = storeFunc (mem comp) addr (fromIntegral val) })
 
 instance RiscvProgram (MState MMIO64) Int64 Word64 where
+  getXLEN = return 64
   getRegister reg = MState $ \comp -> return (if reg == 0 then 0 else (registers comp) !! (fromIntegral reg-1), comp)
   setRegister reg val = MState $ \comp -> return ((), if reg == 0 then comp else comp { registers = setIndex (fromIntegral reg-1) (fromIntegral val) (registers comp) })
   getPC = MState $ \comp -> return (pc comp, comp)
   setPC val = MState $ \comp -> return ((), comp { nextPC = fromIntegral val })
-  step = MState $ \comp -> return ((), comp { pc = nextPC comp })
+  step = do
+    -- Check for interrupts before updating PC.
+    mie <- getCSRField Field.MIE
+    meie <- getCSRField Field.MEIE
+    meip <- getCSRField Field.MEIP
+    nPC <- MState $ \comp -> (return (nextPC comp, comp))
+    fPC <- (if (mie > 0 && meie > 0 && meip > 0) then do
+              setCSRField Field.MEIP 0
+              -- Save the PC of the next (unexecuted) instruction.
+              setCSRField Field.MEPC nPC
+              setCSRField Field.MCauseCode 11 -- Machine external interrupt.
+              trapPC <- getCSRField Field.MTVecBase
+              return trapPC
+            else return nPC)
+    MState $ \comp -> (return ((), comp { pc = fPC }))
+
   -- Memory functions:
   loadByte = wrapLoad M.loadByte
   loadHalf = wrapLoad M.loadHalf
@@ -95,6 +113,5 @@ instance RiscvProgram (MState MMIO64) Int64 Word64 where
     | otherwise -> return ((), comp { mem = M.storeWord (mem comp) addr (fromIntegral val) })
   storeDouble = wrapStore M.storeDouble
   -- CSRs:
-  loadCSR addr = MState $ \comp -> return (encode $ fromJust $ lookup addr (csrs comp), comp)
-  storeCSR addr val = MState $ \comp -> return ((), comp { csrs = setIndex (fromJust $ elemIndex addr (map fst $ csrs comp))
-                                                                           (addr, decode addr $ fromIntegral val) (csrs comp) })
+  getCSRField field = MState $ \comp -> return (getField field (csrs comp), comp)
+  setCSRField field val = MState $ \comp -> return ((), comp { csrs = setField field (fromIntegral val) (csrs comp) })

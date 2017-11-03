@@ -7,12 +7,10 @@ import Data.Word
 import Data.Maybe
 import Utility
 import Program
-import MMIO64
-import CSR
-import qualified CSRField as Field
-import CSRFile
+import MMIO32
+import CSR hiding (decode)
 import Decode
-import Execute
+import Execute32
 import Numeric
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
@@ -44,7 +42,7 @@ checkInterrupt = do
     else return False
   else return False
 
-helper :: MState MMIO64 Int64
+helper :: MState MMIO32 Int32
 helper = do
   pc <- getPC
   inst <- loadWord pc
@@ -56,19 +54,20 @@ helper = do
     interrupt <- (MState $ \comp -> liftIO checkInterrupt >>= (\b -> return (b, comp)))
     if interrupt then do
       -- Signal interrupt by setting MEIP high.
-      setCSRField Field.MEIP 1
+      mip <- loadCSR mip_addr
+      storeCSR mip_addr (encode ((decodeMIP mip) { meip = True }))
     else return ()
     step
     helper
 
-runProgram :: MMIO64 -> IO (Int64, MMIO64)
+runProgram :: MMIO32 -> IO (Int32, MMIO32)
 runProgram = (fmap fromJust) . runMaybeT . (runState helper)
 
-runFile :: String -> IO Int64
+runFile :: String -> IO Int32
 runFile f = do
   h <- openFile f ReadMode
   m <- readELF h []
-  let c = MMIO64 { registers = (take 31 $ repeat 0), csrs = emptyFile, pc = 0x200, nextPC = 0,
+  let c = MMIO32 { registers = (take 31 $ repeat 0), csrs = defaultCSRs, pc = 0x200, nextPC = 0,
                    mem = S.fromList $ zip [0..] (m ++ (take (65520 - length m) $ repeat (0::Word8))), mmio = baseMMIO } in
     fmap fst $ runProgram c
 
